@@ -48,11 +48,6 @@ function statusBadge(p) {
 
 function renderPlayers() {
   const list = $("playerList");
-  const hasPlayed = state.history.some((round) =>
-    round.matches?.some((match) => match.players?.includes(p.id)),
-  );
-
-  const actionLabel = hasPlayed ? "Gone Home" : "Remove";
   list.innerHTML = "";
   $("playersEmpty").style.display = state.players.length ? "none" : "block";
   [...state.players]
@@ -64,6 +59,10 @@ function renderPlayers() {
         a.name.localeCompare(b.name),
     )
     .forEach((p) => {
+      const hasPlayed = state.history.some((round) =>
+        round.matches?.some((match) => match.players?.includes(p.id)),
+      );
+      const actionLabel = hasPlayed ? "Gone Home" : "Remove";
       const row = document.createElement("div");
       row.className = "player-row";
       row.innerHTML = `<div class="player-name">${escapeHtml(p.name)}</div>
@@ -73,12 +72,12 @@ function renderPlayers() {
           Arrived
         </label>
         </span>
-        // <span>
-        //   <label class="early-toggle no-wrap">
-        //     <input type="checkbox" data-away="${p.id}" ${!p.arrived ? "" : " "}>
-        //     Home
-        //   </label>
-        // </span>
+        <span>
+          <label class="early-toggle no-wrap">
+            <input type="checkbox" data-away="${p.id}" ${p.available === false ? "checked" : ""}>
+            Sitting out
+          </label>
+        </span>
         <span>
           ${statusBadge(p)}
         </span>
@@ -190,17 +189,29 @@ function renderHistory() {
           .slice()
           .reverse()
           .map((m) => {
-            const names = c.players.map((id) => getPlayerName(id));
+            const names = m.players.map((id) => getPlayerName(id));
             const sides =
               state.format === "doubles"
-                ? `${names[0]} + ${names[1]} vs ${names[2]} + ${names[3]}`
-                : `${names[0]} vs ${names[1]}`;
+                ? `<span class="player-name-court">
+                    ${escapeHtml(names[0])} + ${escapeHtml(names[1])}
+                  </span>
+                  &nbsp;&nbsp;&nbsp;VS&nbsp;&nbsp;&nbsp;
+                  <span class="player-name-court">
+                    ${escapeHtml(names[2])} + ${escapeHtml(names[3])}
+                  </span>`
+                : `<span class="player-name-court">
+                    ${escapeHtml(names[0])}
+                  </span>
+                  &nbsp;&nbsp;&nbsp;VS&nbsp;&nbsp;&nbsp;
+                  <span class="player-name-court">
+                    ${escapeHtml(names[1])}
+                  </span>`;
             return `<div class="history-row">
               <span>
                 Round ${m.roundNumber}
               </span>
               <strong>
-                ${escapeHtml(sides)}
+                ${sides}
               </strong>
               <time>
                 ${new Date(m.completedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
@@ -247,7 +258,7 @@ function renderBalance() {
         waiting ${p.waitStreak || 0}
       </span>
       <span class="muted">
-        ${p.arrived ? (p.currentlyPlaying ? "Playing" : "Available") : "Home"}
+        ${p.arrived ? (p.currentlyPlaying ? "Playing" : "Available") : "Not Available"}
       </span>`;
     list.appendChild(row);
   });

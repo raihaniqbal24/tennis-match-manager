@@ -128,7 +128,7 @@ function findBestSchedule(eligible, courtNumber, maps) {
     const pool = ordered.slice(0, max);
     if (pool.length < need) continue;
     let players = pool.map((p) => p.id);
-    if (state.format === "doubles") players = bestDoubles(pool, maps);
+    if (state.format === "doubles") players = bestDoubles(players, maps);
     const m = { court: courtNumber, players };
     const score = arrangementScore([m], maps);
     if (score < bestScore) {

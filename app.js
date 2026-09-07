@@ -13,10 +13,6 @@ $("addPlayerBtn").onclick = () => {
   if (!name) return;
   if (state.players.some((p) => p.name.toLowerCase() === name.toLowerCase()))
     return toast("That player is already listed.");
-  const maxOrder = Math.max(
-    0,
-    ...state.players.map((p) => p.arrivalOrder || 0),
-  );
   state.players.push({
     id: makeId(),
     name,
@@ -24,7 +20,6 @@ $("addPlayerBtn").onclick = () => {
     available: true,
     matchCount: 0,
     waitStreak: 0,
-    arrivalOrder: maxOrder + 1,
     currentlyPlaying: false,
   });
   input.value = "";
@@ -83,10 +78,23 @@ $("saveCourtNamesBtn").onclick = () => {
 };
 
 $("playerList").onchange = (e) => {
-  const id = e.target.dataset.arrival;
-  if (!id) return;
+  const arrivalId = e.target.dataset.arrival;
+  const awayId = e.target.dataset.away;
 
-  const p = state.players.find((x) => x.id === id);
+  if (awayId) {
+    const p = state.players.find((x) => x.id === awayId);
+    if (!p) return;
+    if (p.currentlyPlaying) {
+      e.target.checked = !e.target.checked;
+      return toast("That player is currently playing.");
+    }
+    p.available = !e.target.checked; // checked = sitting out
+    saveState();
+    render();
+    return;
+  }
+
+  const p = state.players.find((x) => x.id === arrivalId);
   if (!p) return;
   if (p.currentlyPlaying) {
     e.target.checked = true;
@@ -97,7 +105,12 @@ $("playerList").onchange = (e) => {
     p.arrived = true;
     p.available = true;
 
-    if (!p.arrivalTime) {
+    if (!p.arrivalOrder) {
+      const maxOrder = Math.max(
+        0,
+        ...state.players.map((x) => x.arrivalOrder || 0),
+      );
+      p.arrivalOrder = maxOrder + 1;
       p.arrivalTime = Date.now();
     }
   } else {
@@ -137,7 +150,14 @@ $("playerList").onclick = (e) => {
 
 $("arriveAllBtn").onclick = () => {
   state.players.forEach((p) => {
-    if (!p.arrived && !p.arrivalTime) p.arrivalTime = Date.now();
+    if (!p.arrived && !p.arrivalOrder) {
+      const maxOrder = Math.max(
+        0,
+        ...state.players.map((x) => x.arrivalOrder || 0),
+      );
+      p.arrivalOrder = maxOrder + 1;
+      p.arrivalTime = Date.now();
+    }
     p.arrived = true;
     p.available = true;
   });
