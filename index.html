@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Tennis Match Manager</title>
+    <link rel="icon" type="image/png" href="tennis.png" />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+
+  <body>
+    <main class="container">
+      <!-- Header -->
+      <header class="hero">
+        <div>
+          <p class="eyebrow">Tennis social / rotation manager</p>
+          <h1>Tennis Match Manager</h1>
+          <p class="subtitle">
+            Balance matches, rotate players, and run each court independently.
+          </p>
+        </div>
+        <button id="resetBtn" class="button danger ghost">Reset session</button>
+      </header>
+
+      <!-- Navigation Tab -->
+      <nav class="tabs">
+        <button class="tab active" data-tab="setup">Setup & Players</button
+        ><button class="tab" data-tab="overview">Overview</button
+        ><button class="tab" data-tab="matches">Current Round & History</button>
+      </nav>
+
+      <!-- Setup & Players Section -->
+      <section id="setupTab" class="tab-panel active">
+        <div>
+          <article class="card">
+            <div class="card-heading">
+              <h2>Session setup</h2>
+              <span class="badge" id="sessionBadge">0 players</span>
+            </div>
+            <div class="form-row">
+              <label>
+                Number of courts
+                <input
+                  id="courtCount"
+                  type="number"
+                  min="1"
+                  max="20"
+                  value="2"
+                />
+              </label>
+              <label>
+                Format
+                <select id="formatSelect">
+                  <option value="doubles">Doubles · 4 players per court</option>
+                  <option value="singles">Singles · 2 players per court</option>
+                </select>
+              </label>
+            </div>
+            <div class="input-row">
+              <input
+                id="playerName"
+                type="text"
+                placeholder="Enter player name"
+                autocomplete="off"
+              />
+              <button
+                id="addPlayerBtn"
+                class="button primary add-player-button"
+              >
+                Add player
+              </button>
+            </div>
+            <div class="helper">
+              Data saved locally in this browser. Arrival order is used as a
+              small scheduling bonus.
+            </div>
+            <div class="court-name-heading">
+              <div>
+                <strong>Court names</strong>
+                <span class="muted">Default: Court 1, Court 2, etc.</span>
+              </div>
+              <button id="saveCourtNamesBtn" class="button secondary small">
+                Save names
+              </button>
+            </div>
+            <div id="courtNames" class="court-names"></div>
+          </article>
+          <article class="card">
+            <div class="card-heading">
+              <h2>Player list</h2>
+              <div class="player-actions">
+                <button id="arriveAllBtn" class="button secondary">
+                  All arrived
+                </button>
+                <button id="clearAllBtn" class="button ghost">
+                  Clear arrivals
+                </button>
+              </div>
+            </div>
+            <div id="playersEmpty" class="empty-state">No players yet.</div>
+            <div id="playerList" class="player-list"></div>
+          </article>
+        </div>
+      </section>
+
+      <!-- Overview Section -->
+      <section id="overviewTab" class="tab-panel">
+        <div class="grid stats-grid">
+          <article class="card stat">
+            <span>Arrived</span><strong id="arrivedStat">0</strong>
+          </article>
+          <article class="card stat">
+            <span>Playing</span><strong id="playingStat">0</strong>
+          </article>
+          <article class="card stat">
+            <span>Waiting</span><strong id="waitingStat">0</strong>
+          </article>
+          <article class="card stat">
+            <span>Avg. matches</span><strong id="avgStat">0.0</strong>
+          </article>
+        </div>
+        <article class="card margin-top-16">
+          <div class="card-heading">
+            <div>
+              <h2>Player balance & waiting</h2>
+              <p class="muted">
+                ⚠ under 2 matches · 🔶 under 4 matches · waiting streak shown
+                when a player is not on court.
+              </p>
+            </div>
+            <span class="badge" id="balanceBadge">Balanced</span>
+          </div>
+          <div id="balanceList" class="balance-list"></div>
+        </article>
+      </section>
+
+      <!-- Current Round & History Section -->
+      <section id="matchesTab" class="tab-panel">
+        <article class="card schedule-card">
+          <div class="card-heading">
+            <div>
+              <h2>Courts</h2>
+              <p class="muted" id="roundHint">
+                Generate the first matches after players arrive.
+              </p>
+            </div>
+            <div class="schedule-actions">
+              <button id="generateBtn" class="button primary">
+                Generate matches</button
+              ><button id="completeAllBtn" class="button secondary" disabled>
+                Complete all playing
+              </button>
+            </div>
+          </div>
+          <div id="editHelp" class="edit-help">
+            Each court is independent. When a court finishes, complete only that
+            court and generate its next match without waiting for other courts.
+          </div>
+          <div id="scheduleEmpty" class="empty-state">No current matches.</div>
+          <div id="scheduleList" class="schedule-list"></div>
+        </article>
+        <article class="card">
+          <div class="card-heading">
+            <div>
+              <h2>Match history</h2>
+              <p class="muted">
+                History is grouped by court, so completed matches remain visible
+                even while other courts are still playing.
+              </p>
+            </div>
+          </div>
+          <div id="historyList" class="history-list"></div>
+        </article>
+      </section>
+
+      <!-- Footer -->
+      <footer>
+        <span>This app saves your data locally in your browser</span>
+        <span>Created by Raihan, 2026</span>
+        <span id="lastSaved">Not saved yet</span>
+      </footer>
+    </main>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+    <script src="js/state.js"></script>
+    <script src="js/scheduler.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
