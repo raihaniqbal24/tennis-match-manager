@@ -152,7 +152,7 @@ function generateForCourt(courtNumber) {
   const court = state.currentCourts.find((c) => c.court === courtNumber);
   if (court?.status === "playing") return false;
   const eligible = state.players.filter(
-    (p) => p.arrived && !p.currentlyPlaying,
+    (p) => p.arrived && p.available !== false && !p.currentlyPlaying,
   );
   const need = playersPerMatch();
   if (eligible.length < need) return false;

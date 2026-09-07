@@ -1,4 +1,4 @@
-const STORAGE_KEY = "tennis-match-manager-v5";
+const STORAGE_KEY = "tennis-match-manager";
 
 const state = loadState();
 
@@ -27,7 +27,17 @@ function loadState() {
     return {
       ...defaultState(),
       ...p,
-      players: Array.isArray(p.players) ? p.players : [],
+      players: Array.isArray(p.players)
+        ? p.players.map((player) => ({
+            ...player,
+            id: String(player.id),
+            available: player.available !== false,
+            matchCount: player.matchCount || 0,
+            matchCountPending: player.matchCountPending || 0,
+            waitStreak: player.waitStreak || 0,
+            currentlyPlaying: player.currentlyPlaying || false,
+          }))
+        : [],
       history: Array.isArray(p.history) ? p.history : [],
       currentCourts: Array.isArray(p.currentCourts) ? p.currentCourts : [],
     };
@@ -54,6 +64,13 @@ function getCourtName(n) {
   return state.courtNames[n - 1] || `Court ${n}`;
 }
 
+function getPlayerName(id) {
+  const player = playerLookup().get(String(id));
+  return player?.name || "Unknown";
+}
+
 function playerLookup() {
-  return new Map(state.players.map((p) => [p.id, p]));
+  return new Map(
+    state.players.filter((p) => p && p.id).map((p) => [String(p.id), p]),
+  );
 }

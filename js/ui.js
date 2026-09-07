@@ -26,7 +26,12 @@ function renderCourtNames() {
   $("courtNames").innerHTML = state.courtNames
     .map(
       (n, i) =>
-        `<label class="court-name-field"><span>Court ${i + 1}</span><input class="court-name-input" data-index="${i}" value="${escapeHtml(n)}" maxlength="40"></label>`,
+        `<label class="court-name-field">
+          <span>
+            Court ${i + 1}
+          </span>
+          <input class="court-name-input" data-index="${i}" value="${escapeHtml(n)}" maxlength="40">
+        </label>`,
     )
     .join("");
 }
@@ -43,6 +48,11 @@ function statusBadge(p) {
 
 function renderPlayers() {
   const list = $("playerList");
+  const hasPlayed = state.history.some((round) =>
+    round.matches?.some((match) => match.players?.includes(p.id)),
+  );
+
+  const actionLabel = hasPlayed ? "Gone Home" : "Remove";
   list.innerHTML = "";
   $("playersEmpty").style.display = state.players.length ? "none" : "block";
   [...state.players]
@@ -63,16 +73,24 @@ function renderPlayers() {
           Arrived
         </label>
         </span>
+        // <span>
+        //   <label class="early-toggle no-wrap">
+        //     <input type="checkbox" data-away="${p.id}" ${!p.arrived ? "" : " "}>
+        //     Home
+        //   </label>
+        // </span>
         <span>
-        <label class="early-toggle no-wrap">
-          <input type="checkbox" data-away="${p.id}" ${!p.arrived ? "" : " "}>
-          Home
-        </label>
+          ${statusBadge(p)}
         </span>
-        <span>${statusBadge(p)}</span>
-        <span class="matches-pill">${p.matchCount} matches</span>
-        <span class="wait-pill">wait ${p.waitStreak || 0}</span>
-        <button class="icon-button" data-delete="${p.id}">Remove</button>`;
+        <span class="matches-pill">
+          ${p.matchCount} matches
+        </span>
+        <span class="wait-pill">
+          wait ${p.waitStreak || 0}
+        </span>
+        <button class="icon-button" data-delete="${p.id}">
+          ${actionLabel}
+        </button>`;
       list.appendChild(row);
     });
 }
@@ -98,9 +116,7 @@ function renderCourts() {
   state.currentCourts.forEach((c) => {
     const card = document.createElement("div");
     card.className = "match-card";
-    const names = c.players.map(
-      (id) => playerLookup().get(id)?.name || "Unknown",
-    );
+    const names = c.players.map((id) => getPlayerName(id));
     card.innerHTML = `<div class="match-head">
       <span class="court">${escapeHtml(getCourtName(c.court))}</span>
       <span class="match-number">${c.status === "playing" ? `Round ${c.roundNumber}` : "Idle"}</span>
@@ -174,9 +190,7 @@ function renderHistory() {
           .slice()
           .reverse()
           .map((m) => {
-            const names = m.players.map(
-              (id) => playerLookup().get(id)?.name || "Unknown",
-            );
+            const names = c.players.map((id) => getPlayerName(id));
             const sides =
               state.format === "doubles"
                 ? `${names[0]} + ${names[1]} vs ${names[2]} + ${names[3]}`

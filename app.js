@@ -21,6 +21,7 @@ $("addPlayerBtn").onclick = () => {
     id: makeId(),
     name,
     arrived: false,
+    available: true,
     matchCount: 0,
     waitStreak: 0,
     arrivalOrder: maxOrder + 1,
@@ -84,33 +85,61 @@ $("saveCourtNamesBtn").onclick = () => {
 $("playerList").onchange = (e) => {
   const id = e.target.dataset.arrival;
   if (!id) return;
+
   const p = state.players.find((x) => x.id === id);
   if (!p) return;
   if (p.currentlyPlaying) {
     e.target.checked = true;
     return toast("That player is currently playing.");
   }
-  p.arrived = e.target.checked;
-  if (p.arrived) p.arrivalTime = Date.now();
+
+  if (e.target.checked) {
+    p.arrived = true;
+    p.available = true;
+
+    if (!p.arrivalTime) {
+      p.arrivalTime = Date.now();
+    }
+  } else {
+    p.arrived = false;
+  }
+
   saveState();
   render();
 };
 
 $("playerList").onclick = (e) => {
   const id = e.target.dataset.delete;
-  if (id) {
-    if (state.players.find((p) => p.id === id)?.currentlyPlaying)
-      return toast("Cannot remove a player currently playing.");
-    state.players = state.players.filter((p) => p.id !== id);
+  if (!id) return;
+
+  const player = state.players.find((p) => p.id === id);
+  if (!player) return;
+  if (player.currentlyPlaying) {
+    return toast("Cannot remove a player currently playing.");
+  }
+
+  const hasPlayed = state.history.some((round) =>
+    round.matches?.some((match) => match.players?.includes(id)),
+  );
+
+  if (hasPlayed) {
+    player.available = false;
+    player.arrived = false;
     saveState();
     render();
+    return toast(`${player.name} has been marked as gone home.`);
   }
+  state.players = state.players.filter((p) => p.id !== id);
+
+  saveState();
+  render();
 };
 
 $("arriveAllBtn").onclick = () => {
   state.players.forEach((p) => {
     if (!p.arrived && !p.arrivalTime) p.arrivalTime = Date.now();
     p.arrived = true;
+    p.available = true;
   });
   saveState();
   render();
