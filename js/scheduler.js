@@ -189,6 +189,32 @@ function generateForCourt(courtNumber) {
   return true;
 }
 
+function partitionKey(players) {
+  const teamA = [players[0], players[1]].sort().join(",");
+  const teamB = [players[2], players[3]].sort().join(",");
+  return [teamA, teamB].sort().join("|");
+}
+
+function cycleDoublesArrangement(courtNumber) {
+  const court = state.currentCourts.find((c) => c.court === courtNumber);
+  if (!court || court.status !== "playing" || state.format !== "doubles")
+    return false;
+  if (!court.players || court.players.length !== 4) return false;
+
+  const [w, x, y, z] = [...court.players].sort();
+  const arrangements = [
+    [w, x, y, z], // w+x vs y+z
+    [x, z, w, y], // x+z vs w+y
+    [y, x, z, w], // y+x vs z+w
+  ];
+  const currentIndex = arrangements.findIndex(
+    (a) => partitionKey(a) === partitionKey(court.players),
+  );
+  court.players = arrangements[(currentIndex + 1) % arrangements.length];
+  saveState();
+  return true;
+}
+
 function completeCourt(courtNumber) {
   const court = state.currentCourts.find((c) => c.court === courtNumber);
   if (!court || court.status !== "playing") return false;

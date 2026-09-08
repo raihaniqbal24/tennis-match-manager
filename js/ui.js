@@ -154,6 +154,13 @@ function renderCourts() {
             </div>
           </div>
           <div class="match-footer">
+            ${
+              state.format === "doubles"
+                ? `<button class="button secondary small" data-rearrange-court="${c.court}">
+                    Swap Pairing
+                  </button>`
+                : ""
+            }
             <button class="button secondary small" data-complete-court="${c.court}">
               Complete ${escapeHtml(getCourtName(c.court))}
             </button>

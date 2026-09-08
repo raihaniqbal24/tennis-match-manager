@@ -191,7 +191,9 @@ $("generateBtn").onclick = () => {
 
 $("scheduleList").onclick = (e) => {
   const complete = e.target.dataset.completeCourt,
-    gen = e.target.dataset.generateCourt;
+    gen = e.target.dataset.generateCourt,
+    rearrange = e.target.dataset.rearrangeCourt;
+
   if (complete) {
     completeCourt(Number(complete));
     render();
@@ -201,6 +203,10 @@ $("scheduleList").onclick = (e) => {
   if (gen) {
     if (generateForCourt(Number(gen))) render();
     else toast("Not enough available players for this court.");
+  }
+  if (rearrange) {
+    if (cycleDoublesArrangement(Number(rearrange))) render();
+    return;
   }
 };
 
