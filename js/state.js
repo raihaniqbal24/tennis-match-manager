@@ -34,6 +34,7 @@ function loadState() {
             available: player.available !== false,
             matchCount: player.matchCount || 0,
             matchCountPending: player.matchCountPending || 0,
+            reserved: player.reserved || false,
             waitStreak: player.waitStreak || 0,
             currentlyPlaying: player.currentlyPlaying || false,
           }))

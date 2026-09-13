@@ -106,23 +106,8 @@ function renderStats() {
   $("avgStat").textContent = avg.toFixed(1);
 }
 
-function renderCourts() {
-  const list = $("scheduleList");
-  list.innerHTML = "";
-  $("scheduleEmpty").style.display = state.currentCourts.length
-    ? "none"
-    : "block";
-  state.currentCourts.forEach((c) => {
-    const card = document.createElement("div");
-    card.className = "match-card";
-    const names = c.players.map((id) => getPlayerName(id));
-    card.innerHTML = `<div class="match-head">
-      <span class="court">${escapeHtml(getCourtName(c.court))}</span>
-      <span class="match-number">${c.status === "playing" ? `Round ${c.roundNumber}` : "Idle"}</span>
-    </div>
-    ${
-      c.status === "playing"
-        ? `<div class="teams">
+function renderTeamsBlock(c, names) {
+  return `<div class="teams">
             <div class="team">
               <div class="team-title">
                 ${state.format === "singles" ? "Player A" : "Team A"}
@@ -130,11 +115,9 @@ function renderCourts() {
               <span class="player-chip">
                 ${escapeHtml(names[0] || "")}
               </span>
-              ${
-                state.format === "doubles"
-                  ? `<span class="player-chip">${escapeHtml(names[1] || "")}</span>`
-                  : ""
-              }
+              ${state.format === "doubles"
+                ? `<span class="player-chip">${escapeHtml(names[1] || "")}</span>`
+                : ""}
             </div>
             <div class="vs">
               VS
@@ -146,27 +129,69 @@ function renderCourts() {
               <span class="player-chip">
                 ${escapeHtml(names[state.format === "singles" ? 1 : 2] || "")}
               </span>
-              ${
-                state.format === "doubles"
-                  ? `<span class="player-chip">${escapeHtml(names[3] || "")}</span>`
-                  : ""
-              }
+              ${state.format === "doubles"
+                ? `<span class="player-chip">${escapeHtml(names[3] || "")}</span>`
+                : ""}
             </div>
-          </div>
-          <div class="match-footer">
-            <button class="button secondary small" data-complete-court="${c.court}">
-              Complete ${escapeHtml(getCourtName(c.court))}
-            </button>
-          </div>`
-        : `<div class="idle-court">
-            <span>
-              No match currently playing
-            </span>
-            <button class="button primary small" data-generate-court="${c.court}">
-              Generate next match
-            </button>
-          </div>`
-    }`;
+          </div>`;
+}
+
+function renderCourts() {
+  const list = $("scheduleList");
+  list.innerHTML = "";
+  $("scheduleEmpty").style.display = state.currentCourts.length
+    ? "none"
+    : "block";
+  state.currentCourts.forEach((c) => {
+    const card = document.createElement("div");
+    card.className = "match-card";
+    const names = c.players.map((id) => getPlayerName(id));
+    const label =
+      c.status === "playing" ? `Round ${c.roundNumber}` :
+      c.status === "pending" ? "Reviewing" : "Idle";
+    const footer =
+    c.status === "playing"
+      ? `<div class="match-footer">
+           <button class="button secondary small" data-complete-court="${c.court}">
+             Complete ${escapeHtml(getCourtName(c.court))}
+           </button>
+         </div>`
+      : c.status === "pending"
+      ? `<div class="match-footer">
+          <button class="button secondary small" data-reroll-court="${c.court}">
+            Re-roll
+          </button>
+          ${state.format === "doubles"
+            ? `<button class="button secondary small" data-rearrange-court="${c.court}">
+                Swap Pairing
+              </button>`
+            : ""}
+          <button class="button secondary small" data-cancel-court="${c.court}">
+            Cancel
+          </button>
+          <button class="button primary small" data-confirm-court="${c.court}">
+            Confirm &amp; Start
+          </button>
+        </div>`
+      : `<div class="idle-court">
+           <span>
+            No match currently playing
+           </span>
+           <button class="button primary small" data-generate-court="${c.court}">
+            Generate next match
+           </button>
+         </div>`;
+
+    card.innerHTML = `<div class="match-head">
+                        <span class="court">
+                          ${escapeHtml(getCourtName(c.court))}
+                        </span>
+                        <span class="match-number">
+                          ${label}
+                        </span>
+                      </div>
+                      ${c.status !== "idle" ? renderTeamsBlock(c, names) : ""}
+                      ${footer}`;
     list.appendChild(card);
   });
 }
