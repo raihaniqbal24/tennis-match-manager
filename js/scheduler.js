@@ -139,6 +139,39 @@ function findBestSchedule(eligible, courtNumber, maps) {
   return best;
 }
 
+function findAlternateSchedule(eligible, courtNumber, maps, avoidIds) {
+  const need = playersPerMatch();
+  if (eligible.length < need) return null;
+
+  const ordered = [...eligible].sort(
+    (a, b) =>
+      a.matchCount - b.matchCount ||
+      b.waitStreak - a.waitStreak ||
+      a.arrivalOrder - b.arrivalOrder,
+  );
+  const primaryPool = ordered.slice(0, need);
+
+  let best = null,
+    bestScore = Infinity;
+  for (let dropIndex = 0; dropIndex < need; dropIndex++) {
+    for (let replaceRank = need; replaceRank < ordered.length; replaceRank++) {
+      const candidatePool = primaryPool.filter((_, i) => i !== dropIndex);
+      candidatePool.push(ordered[replaceRank]);
+      let players = candidatePool.map((p) => p.id);
+      if (state.format === "doubles") players = bestDoubles(players, maps);
+      if (players.length !== avoidIds.size) continue;
+      if (players.every((id) => avoidIds.has(id))) continue; // still the same group
+      const score = arrangementScore([{ court: courtNumber, players }], maps);
+      if (score < bestScore) {
+        bestScore = score;
+        best = { court: courtNumber, players };
+      }
+      break;
+    }
+  }
+  return best;
+}
+
 function updateWaitingAfterSelection(selectedIds) {
   const selected = new Set(selectedIds);
   state.players.forEach((p) => {
@@ -148,43 +181,103 @@ function updateWaitingAfterSelection(selectedIds) {
   });
 }
 
-function generateForCourt(courtNumber) {
+function proposeMatchForCourt(courtNumber, avoidIds = null) {
   const court = state.currentCourts.find((c) => c.court === courtNumber);
-  if (court?.status === "playing") return false;
+  if (court && court.status !== "idle") return false;
+
   const eligible = state.players.filter(
-    (p) => p.arrived && p.available !== false && !p.currentlyPlaying,
+    (p) =>
+      p.arrived && p.available !== false && !p.currentlyPlaying && !p.reserved,
   );
   const need = playersPerMatch();
   if (eligible.length < need) return false;
+
   const maps = relationshipMaps();
-  const match = findBestSchedule(eligible, courtNumber, maps);
+  let match = findBestSchedule(eligible, courtNumber, maps);
   if (!match) return false;
-  match.createdAt = new Date().toISOString();
-  match.roundNumber = state.nextRoundNumber++;
-  const old = court || { court: courtNumber };
+
+  if (
+    avoidIds &&
+    match.players.length === avoidIds.size &&
+    match.players.every((id) => avoidIds.has(id))
+  ) {
+    match =
+      findAlternateSchedule(eligible, courtNumber, maps, avoidIds) || match;
+  }
+
   if (court) {
     court.players = match.players;
-    court.status = "playing";
-    court.matchId = makeId();
-    court.startedAt = match.createdAt;
-    court.roundNumber = match.roundNumber;
-  } else
+    court.status = "pending";
+    court.matchId = null;
+    court.startedAt = null;
+    court.roundNumber = null;
+  } else {
     state.currentCourts.push({
       court: courtNumber,
       players: match.players,
-      status: "playing",
-      matchId: makeId(),
-      startedAt: match.createdAt,
-      roundNumber: match.roundNumber,
+      status: "pending",
+      matchId: null,
+      startedAt: null,
+      roundNumber: null,
     });
+  }
   state.players.forEach((p) => {
-    if (match.players.includes(p.id)) {
+    if (match.players.includes(p.id)) p.reserved = true;
+  });
+
+  saveState();
+  return true;
+}
+
+function confirmCourt(courtNumber) {
+  const court = state.currentCourts.find((c) => c.court === courtNumber);
+  if (!court || court.status !== "pending") return false;
+
+  court.status = "playing";
+  court.matchId = makeId();
+  court.startedAt = new Date().toISOString();
+  court.roundNumber = state.nextRoundNumber++;
+
+  state.players.forEach((p) => {
+    if (court.players.includes(p.id)) {
       p.matchCountPending = (p.matchCountPending || 0) + 1;
       p.currentlyPlaying = true;
+      p.reserved = false;
       p.waitStreak = 0;
     }
   });
-  updateWaitingAfterSelection(match.players);
+  updateWaitingAfterSelection(court.players);
+  saveState();
+  return true;
+}
+
+function rerollCourt(courtNumber) {
+  const court = state.currentCourts.find((c) => c.court === courtNumber);
+  if (!court || court.status !== "pending") return false;
+
+  const avoidIds = new Set(court.players);
+
+  state.players.forEach((p) => {
+    if (court.players.includes(p.id)) p.reserved = false;
+  });
+  court.status = "idle";
+  court.players = [];
+
+  return proposeMatchForCourt(courtNumber, avoidIds);
+}
+
+function cancelPendingCourt(courtNumber) {
+  const court = state.currentCourts.find((c) => c.court === courtNumber);
+  if (!court || court.status !== "pending") return false;
+
+  state.players.forEach((p) => {
+    if (court.players.includes(p.id)) p.reserved = false;
+  });
+  court.status = "idle";
+  court.players = [];
+  court.matchId = null;
+  court.startedAt = null;
+  court.roundNumber = null;
   saveState();
   return true;
 }
@@ -197,7 +290,11 @@ function partitionKey(players) {
 
 function cycleDoublesArrangement(courtNumber) {
   const court = state.currentCourts.find((c) => c.court === courtNumber);
-  if (!court || court.status !== "playing" || state.format !== "doubles")
+  if (
+    !court ||
+    !["pending", "playing"].includes(court.status) ||
+    state.format !== "doubles"
+  )
     return false;
   if (!court.players || court.players.length !== 4) return false;
 

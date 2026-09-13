@@ -21,6 +21,7 @@ $("addPlayerBtn").onclick = () => {
     matchCount: 0,
     waitStreak: 0,
     currentlyPlaying: false,
+    reserved: false,
   });
   input.value = "";
   saveState();
@@ -96,9 +97,11 @@ $("playerList").onchange = (e) => {
 
   const p = state.players.find((x) => x.id === arrivalId);
   if (!p) return;
-  if (p.currentlyPlaying) {
+  if (p.currentlyPlaying || p.reserved) {
     e.target.checked = true;
-    return toast("That player is currently playing.");
+    return toast(
+      p.reserved ? "That player is in a pending match — reroll or cancel it first." : "That player is currently playing.",
+    );
   }
 
   if (e.target.checked) {
@@ -127,8 +130,10 @@ $("playerList").onclick = (e) => {
 
   const player = state.players.find((p) => p.id === id);
   if (!player) return;
-  if (player.currentlyPlaying) {
-    return toast("Cannot remove a player currently playing.");
+  if (player.currentlyPlaying || player.reserved) {
+    return toast(
+      player.reserved ? "Cannot remove a player in a pending match." : "Cannot remove a player currently playing.",
+    );
   }
 
   const hasPlayed = state.history.some((round) =>
@@ -174,17 +179,8 @@ $("clearAllBtn").onclick = () => {
 };
 
 $("generateBtn").onclick = () => {
-  state.currentCourts = Array.from(
-    { length: state.courts },
-    (_, i) =>
-      state.currentCourts.find((c) => c.court === i + 1) || {
-        court: i + 1,
-        status: "idle",
-        players: [],
-      },
-  );
   let made = 0;
-  for (let i = 1; i <= state.courts; i++) if (generateForCourt(i)) made++;
+  for (let i = 1; i <= state.courts; i++) if (proposeMatchForCourt(i)) made++;
   if (made) render();
   else toast(`Not enough available players to fill an idle court.`);
 };
@@ -192,7 +188,10 @@ $("generateBtn").onclick = () => {
 $("scheduleList").onclick = (e) => {
   const complete = e.target.dataset.completeCourt,
     gen = e.target.dataset.generateCourt,
-    rearrange = e.target.dataset.rearrangeCourt;
+    rearrange = e.target.dataset.rearrangeCourt,
+    reroll = e.target.dataset.rerollCourt,
+    confirm = e.target.dataset.confirmCourt,
+    cancel = e.target.dataset.cancelCourt;
 
   if (complete) {
     completeCourt(Number(complete));
@@ -201,11 +200,25 @@ $("scheduleList").onclick = (e) => {
     return;
   }
   if (gen) {
-    if (generateForCourt(Number(gen))) render();
+    if (proposeMatchForCourt(Number(gen))) render();
     else toast("Not enough available players for this court.");
+    return;
   }
   if (rearrange) {
     if (cycleDoublesArrangement(Number(rearrange))) render();
+    return;
+  }
+  if (reroll) {
+    if (rerollCourt(Number(reroll))) render();
+    else toast("Couldn't re-roll this match.");
+    return;
+  }
+  if (confirm) {
+    if (confirmCourt(Number(confirm))) render();
+    return;
+  }
+  if (cancel) {
+    if (cancelPendingCourt(Number(cancel))) render();
     return;
   }
 };
