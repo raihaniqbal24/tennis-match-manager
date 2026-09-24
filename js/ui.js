@@ -106,32 +106,45 @@ function renderStats() {
   $("avgStat").textContent = avg.toFixed(1);
 }
 
-function renderTeamsBlock(c, names) {
+function renderPlayerSlot(c, slotIndex) {
+  const id = c.players[slotIndex];
+  const name = getPlayerName(id);
+
+  if (c.status !== "pending")
+    return `<span class="player-chip">${escapeHtml(name)}</span>`;
+
+  const candidates = getSwapCandidates();
+  return `<select class="editable-player" data-swap-court="${c.court}" data-swap-slot="${slotIndex}">
+            <option value="${escapeHtml(id)}" selected>${escapeHtml(name)}</option>
+            ${candidates
+              .map(
+                (p) =>
+                  `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}</option>`,
+              )
+              .join("")}
+          </select>`;
+}
+
+function renderTeamsBlock(c) {
+  const isDoubles = state.format === "doubles";
+  const teamASlots = isDoubles ? [0, 1] : [0];
+  const teamBSlots = isDoubles ? [2, 3] : [1];
+
   return `<div class="teams">
             <div class="team">
               <div class="team-title">
-                ${state.format === "singles" ? "Player A" : "Team A"}
+                ${isDoubles ? "Team A" : "Player A"}
               </div>
-              <span class="player-chip">
-                ${escapeHtml(names[0] || "")}
-              </span>
-              ${state.format === "doubles"
-                ? `<span class="player-chip">${escapeHtml(names[1] || "")}</span>`
-                : ""}
+              ${teamASlots.map((i) => renderPlayerSlot(c, i)).join("")}
             </div>
             <div class="vs">
               VS
             </div>
             <div class="team">
               <div class="team-title">
-                ${state.format === "singles" ? "Player B" : "Team B"}
+                ${isDoubles ? "Team B" : "Player B"}
               </div>
-              <span class="player-chip">
-                ${escapeHtml(names[state.format === "singles" ? 1 : 2] || "")}
-              </span>
-              ${state.format === "doubles"
-                ? `<span class="player-chip">${escapeHtml(names[3] || "")}</span>`
-                : ""}
+              ${teamBSlots.map((i) => renderPlayerSlot(c, i)).join("")}
             </div>
           </div>`;
 }
@@ -145,27 +158,31 @@ function renderCourts() {
   state.currentCourts.forEach((c) => {
     const card = document.createElement("div");
     card.className = "match-card";
-    const names = c.players.map((id) => getPlayerName(id));
     const label =
-      c.status === "playing" ? `Round ${c.roundNumber}` :
-      c.status === "pending" ? "Reviewing" : "Idle";
+      c.status === "playing"
+        ? `Round ${c.roundNumber}`
+        : c.status === "pending"
+          ? "Reviewing"
+          : "Idle";
     const footer =
-    c.status === "playing"
-      ? `<div class="match-footer">
+      c.status === "playing"
+        ? `<div class="match-footer">
            <button class="button secondary small" data-complete-court="${c.court}">
              Complete ${escapeHtml(getCourtName(c.court))}
            </button>
          </div>`
-      : c.status === "pending"
-      ? `<div class="match-footer">
+        : c.status === "pending"
+          ? `<div class="match-footer">
           <button class="button secondary small" data-reroll-court="${c.court}">
             Re-roll
           </button>
-          ${state.format === "doubles"
-            ? `<button class="button secondary small" data-rearrange-court="${c.court}">
+          ${
+            state.format === "doubles"
+              ? `<button class="button secondary small" data-rearrange-court="${c.court}">
                 Swap Pairing
               </button>`
-            : ""}
+              : ""
+          }
           <button class="button secondary small" data-cancel-court="${c.court}">
             Cancel
           </button>
@@ -173,7 +190,7 @@ function renderCourts() {
             Confirm &amp; Start
           </button>
         </div>`
-      : `<div class="idle-court">
+          : `<div class="idle-court">
            <span>
             No match currently playing
            </span>
@@ -190,7 +207,7 @@ function renderCourts() {
                           ${label}
                         </span>
                       </div>
-                      ${c.status !== "idle" ? renderTeamsBlock(c, names) : ""}
+                      ${c.status !== "idle" ? renderTeamsBlock(c) : ""}
                       ${footer}`;
     list.appendChild(card);
   });
