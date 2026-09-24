@@ -1,3 +1,22 @@
+// ---------------------------------------------------------------------------
+// FIXED-PARTNER SEAMS (not implemented yet)
+//
+// A fixed partnership means two players always play on the same team. Adding it
+// later means treating the eligible pool as "units" (a solo player, or a locked
+// pair) instead of individuals. The four hook points are marked with
+// [PARTNER HOOK] comments below:
+//
+//   1. buildRerollMatch  - pick units, not individuals, so a pair is never split
+//   2. findBestSchedule  - same, for the priority-based first generation
+//   3. getSwapCandidates - a partnered player can only be swapped for another
+//                          partnered player (two slots move together)
+//   4. cycleDoublesArrangement - skip arrangements that separate a fixed pair
+//
+// The player field would be `partnerId` (null when unpartnered, symmetric on
+// both players). state.js already spreads unknown player fields through
+// loadState, so adding it needs no migration.
+// ---------------------------------------------------------------------------
+
 function playersPerMatch() {
   return state.format === "singles" ? 2 : 4;
 }
@@ -113,6 +132,7 @@ function bestDoubles(group, maps) {
 }
 
 function findBestSchedule(eligible, courtNumber, maps) {
+  // [PARTNER HOOK 2] group `eligible` into units before slicing the pool.
   const need = playersPerMatch(),
     max = Math.min(eligible.length, need);
   let best = null,
@@ -139,39 +159,6 @@ function findBestSchedule(eligible, courtNumber, maps) {
   return best;
 }
 
-function findAlternateSchedule(eligible, courtNumber, maps, avoidIds) {
-  const need = playersPerMatch();
-  if (eligible.length < need) return null;
-
-  const ordered = [...eligible].sort(
-    (a, b) =>
-      a.matchCount - b.matchCount ||
-      b.waitStreak - a.waitStreak ||
-      a.arrivalOrder - b.arrivalOrder,
-  );
-  const primaryPool = ordered.slice(0, need);
-
-  let best = null,
-    bestScore = Infinity;
-  for (let dropIndex = 0; dropIndex < need; dropIndex++) {
-    for (let replaceRank = need; replaceRank < ordered.length; replaceRank++) {
-      const candidatePool = primaryPool.filter((_, i) => i !== dropIndex);
-      candidatePool.push(ordered[replaceRank]);
-      let players = candidatePool.map((p) => p.id);
-      if (state.format === "doubles") players = bestDoubles(players, maps);
-      if (players.length !== avoidIds.size) continue;
-      if (players.every((id) => avoidIds.has(id))) continue; // still the same group
-      const score = arrangementScore([{ court: courtNumber, players }], maps);
-      if (score < bestScore) {
-        bestScore = score;
-        best = { court: courtNumber, players };
-      }
-      break;
-    }
-  }
-  return best;
-}
-
 function updateWaitingAfterSelection(selectedIds) {
   const selected = new Set(selectedIds);
   state.players.forEach((p) => {
@@ -181,30 +168,15 @@ function updateWaitingAfterSelection(selectedIds) {
   });
 }
 
-function proposeMatchForCourt(courtNumber, avoidIds = null) {
-  const court = state.currentCourts.find((c) => c.court === courtNumber);
-  if (court && court.status !== "idle") return false;
-
-  const eligible = state.players.filter(
+function getEligiblePlayers() {
+  return state.players.filter(
     (p) =>
       p.arrived && p.available !== false && !p.currentlyPlaying && !p.reserved,
   );
-  const need = playersPerMatch();
-  if (eligible.length < need) return false;
+}
 
-  const maps = relationshipMaps();
-  let match = findBestSchedule(eligible, courtNumber, maps);
-  if (!match) return false;
-
-  if (
-    avoidIds &&
-    match.players.length === avoidIds.size &&
-    match.players.every((id) => avoidIds.has(id))
-  ) {
-    match =
-      findAlternateSchedule(eligible, courtNumber, maps, avoidIds) || match;
-  }
-
+function applyPendingMatch(courtNumber, match) {
+  const court = state.currentCourts.find((c) => c.court === courtNumber);
   if (court) {
     court.players = match.players;
     court.status = "pending";
@@ -224,9 +196,52 @@ function proposeMatchForCourt(courtNumber, avoidIds = null) {
   state.players.forEach((p) => {
     if (match.players.includes(p.id)) p.reserved = true;
   });
-
   saveState();
+}
+
+function proposeMatchForCourt(courtNumber) {
+  const court = state.currentCourts.find((c) => c.court === courtNumber);
+  if (court && court.status !== "idle") return false;
+
+  const eligible = getEligiblePlayers();
+  if (eligible.length < playersPerMatch()) return false;
+
+  const maps = relationshipMaps();
+  const match = findBestSchedule(eligible, courtNumber, maps);
+  if (!match) return false;
+
+  applyPendingMatch(courtNumber, match);
   return true;
+}
+
+function buildRerollMatch(eligible, courtNumber, maps, previousIds) {
+  // [PARTNER HOOK 1] shuffle units, not players, so pairs stay together.
+  const need = playersPerMatch();
+  const previousSet = new Set(previousIds);
+
+  const originals = eligible.filter((p) => previousSet.has(p.id));
+  const bench = eligible.filter((p) => !previousSet.has(p.id));
+
+  if (!bench.length) return null;
+
+  // keepCount may be 0 (a completely fresh line-up) whenever the bench is deep
+  // enough to fill the match on its own. It is capped at need - 1 so the result
+  // is always a different set from the one just rejected.
+  const minKeep = Math.max(0, need - bench.length);
+  const maxKeep = Math.min(originals.length, need - 1);
+  if (minKeep > maxKeep) return null;
+
+  const keepCount =
+    minKeep + Math.floor(Math.random() * (maxKeep - minKeep + 1));
+
+  const kept = shuffle(originals).slice(0, keepCount);
+  const incoming = shuffle(bench).slice(0, need - keepCount);
+  const picked = [...kept, ...incoming];
+  if (picked.length < need) return null;
+
+  let players = shuffle(picked).map((p) => p.id);
+  if (state.format === "doubles") players = bestDoubles(players, maps);
+  return { court: courtNumber, players };
 }
 
 function confirmCourt(courtNumber) {
@@ -255,15 +270,63 @@ function rerollCourt(courtNumber) {
   const court = state.currentCourts.find((c) => c.court === courtNumber);
   if (!court || court.status !== "pending") return false;
 
-  const avoidIds = new Set(court.players);
+  const previousIds = [...court.players];
 
   state.players.forEach((p) => {
-    if (court.players.includes(p.id)) p.reserved = false;
+    if (previousIds.includes(p.id)) p.reserved = false;
   });
   court.status = "idle";
   court.players = [];
 
-  return proposeMatchForCourt(courtNumber, avoidIds);
+  const eligible = getEligiblePlayers();
+  const maps = relationshipMaps();
+  const match = buildRerollMatch(eligible, courtNumber, maps, previousIds);
+
+  if (!match) {
+    court.status = "pending";
+    court.players = previousIds;
+    state.players.forEach((p) => {
+      if (previousIds.includes(p.id)) p.reserved = true;
+    });
+    saveState();
+    return false;
+  }
+
+  applyPendingMatch(courtNumber, match);
+  return true;
+}
+
+function getSwapCandidates() {
+  // [PARTNER HOOK 3] filter to partner-compatible candidates.
+  return getEligiblePlayers().sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function swapPlayerInCourt(courtNumber, slotIndex, newPlayerId) {
+  const court = state.currentCourts.find((c) => c.court === courtNumber);
+  if (!court || court.status !== "pending") return false;
+  if (slotIndex < 0 || slotIndex >= court.players.length) return false;
+
+  const outgoingId = court.players[slotIndex];
+  if (!newPlayerId || outgoingId === newPlayerId) return false;
+  if (court.players.includes(newPlayerId)) return false;
+
+  const incoming = state.players.find((p) => p.id === newPlayerId);
+  if (!incoming) return false;
+  if (
+    !incoming.arrived ||
+    incoming.available === false ||
+    incoming.currentlyPlaying ||
+    incoming.reserved
+  )
+    return false;
+
+  const outgoing = state.players.find((p) => p.id === outgoingId);
+  if (outgoing) outgoing.reserved = false;
+  incoming.reserved = true;
+
+  court.players[slotIndex] = newPlayerId;
+  saveState();
+  return true;
 }
 
 function cancelPendingCourt(courtNumber) {
@@ -289,6 +352,7 @@ function partitionKey(players) {
 }
 
 function cycleDoublesArrangement(courtNumber) {
+  // [PARTNER HOOK 4] drop arrangements that split a fixed pair.
   const court = state.currentCourts.find((c) => c.court === courtNumber);
   if (
     !court ||

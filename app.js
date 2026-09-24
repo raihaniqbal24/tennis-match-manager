@@ -100,7 +100,9 @@ $("playerList").onchange = (e) => {
   if (p.currentlyPlaying || p.reserved) {
     e.target.checked = true;
     return toast(
-      p.reserved ? "That player is in a pending match — reroll or cancel it first." : "That player is currently playing.",
+      p.reserved
+        ? "That player is in a pending match — reroll or cancel it first."
+        : "That player is currently playing.",
     );
   }
 
@@ -132,7 +134,9 @@ $("playerList").onclick = (e) => {
   if (!player) return;
   if (player.currentlyPlaying || player.reserved) {
     return toast(
-      player.reserved ? "Cannot remove a player in a pending match." : "Cannot remove a player currently playing.",
+      player.reserved
+        ? "Cannot remove a player in a pending match."
+        : "Cannot remove a player currently playing.",
     );
   }
 
@@ -210,7 +214,7 @@ $("scheduleList").onclick = (e) => {
   }
   if (reroll) {
     if (rerollCourt(Number(reroll))) render();
-    else toast("Couldn't re-roll this match.");
+    else toast("No other available players to swap in.");
     return;
   }
   if (confirm) {
@@ -220,6 +224,19 @@ $("scheduleList").onclick = (e) => {
   if (cancel) {
     if (cancelPendingCourt(Number(cancel))) render();
     return;
+  }
+};
+
+$("scheduleList").onchange = (e) => {
+  const courtNumber = e.target.dataset.swapCourt,
+    slot = e.target.dataset.swapSlot;
+  if (courtNumber === undefined || slot === undefined) return;
+
+  if (swapPlayerInCourt(Number(courtNumber), Number(slot), e.target.value))
+    render();
+  else {
+    toast("Couldn't swap that player.");
+    render();
   }
 };
 
