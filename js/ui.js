@@ -39,6 +39,11 @@ function renderCourtNames() {
 function statusBadge(p) {
   if (!p.arrived) return '<span class="status off">Away</span>';
   if (p.currentlyPlaying) return '<span class="status playing">Playing</span>';
+  if (state.format === "doubles" && p.partnerId) {
+    const partner = state.players.find((x) => x.id === p.partnerId);
+    if (!partner || !partner.arrived || partner.available === false)
+      return '<span class="status warning">Waiting for partner</span>';
+  }
   if ((p.waitStreak || 0) >= 4)
     return '<span class="status alert">🔶 Waiting 4+</span>';
   if ((p.waitStreak || 0) >= 2)
@@ -87,6 +92,22 @@ function renderPlayers() {
         <span class="wait-pill">
           wait ${p.waitStreak || 0}
         </span>
+        <span>
+          ${
+            state.format === "doubles"
+              ? `<select class="partner-select" data-partner="${p.id}">
+                   <option value="">No fixed partner</option>
+                   ${state.players
+                     .filter((x) => x.id !== p.id)
+                     .map(
+                       (x) =>
+                         `<option value="${escapeHtml(x.id)}" ${p.partnerId === x.id ? "selected" : ""}>${escapeHtml(x.name)}</option>`,
+                     )
+                     .join("")}
+                 </select>`
+              : ""
+          }
+        </span>
         <button class="icon-button" data-delete="${p.id}">
           ${actionLabel}
         </button>`;
@@ -112,6 +133,13 @@ function renderPlayerSlot(c, slotIndex) {
 
   if (c.status !== "pending")
     return `<span class="player-chip">${escapeHtml(name)}</span>`;
+
+  const partnerId = getPartnerId(id);
+  if (state.format === "doubles" && partnerId && c.players.includes(partnerId))
+    return `<select class="editable-player" data-pair-court="${c.court}" data-pair-slot="${slotIndex}">
+              <option value="" selected>🔗 ${escapeHtml(name)}</option>
+              <option value="replace">Replace pair (random)</option>
+            </select>`;
 
   const candidates = getSwapCandidates();
   return `<select class="editable-player" data-swap-court="${c.court}" data-swap-slot="${slotIndex}">
@@ -177,7 +205,7 @@ function renderCourts() {
             Re-roll
           </button>
           ${
-            state.format === "doubles"
+            hasSwappableArrangement(c)
               ? `<button class="button secondary small" data-rearrange-court="${c.court}">
                 Swap Pairing
               </button>`

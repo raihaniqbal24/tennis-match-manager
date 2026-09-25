@@ -22,6 +22,7 @@ $("addPlayerBtn").onclick = () => {
     waitStreak: 0,
     currentlyPlaying: false,
     reserved: false,
+    partnerId: null,
   });
   input.value = "";
   saveState();
@@ -40,6 +41,7 @@ $("courtCount").onchange = () => {
   }
   state.courts = Math.max(1, Math.min(20, Number($("courtCount").value) || 2));
   ensureCourtNames();
+  normalizePartners();
   state.currentCourts = Array.from(
     { length: state.courts },
     (_, i) =>
@@ -81,13 +83,29 @@ $("saveCourtNamesBtn").onclick = () => {
 $("playerList").onchange = (e) => {
   const arrivalId = e.target.dataset.arrival;
   const awayId = e.target.dataset.away;
+  const partnerFor = e.target.dataset.partner;
+
+  if (partnerFor) {
+    const value = e.target.value;
+    const ok = value
+      ? setFixedPartner(partnerFor, value)
+      : clearFixedPartner(partnerFor);
+    if (!ok && value)
+      toast("Can't change partners while either player is in a match.");
+    render();
+    return;
+  }
 
   if (awayId) {
     const p = state.players.find((x) => x.id === awayId);
     if (!p) return;
-    if (p.currentlyPlaying) {
+    if (p.currentlyPlaying || p.reserved) {
       e.target.checked = !e.target.checked;
-      return toast("That player is currently playing.");
+      return toast(
+        p.reserved
+          ? "That player is in a pending match - re-roll or cancel it first."
+          : "That player is currently playing.",
+      );
     }
     p.available = !e.target.checked; // checked = sitting out
     saveState();
@@ -151,6 +169,7 @@ $("playerList").onclick = (e) => {
     render();
     return toast(`${player.name} has been marked as gone home.`);
   }
+  clearFixedPartner(id, true);
   state.players = state.players.filter((p) => p.id !== id);
 
   saveState();
@@ -175,6 +194,11 @@ $("arriveAllBtn").onclick = () => {
 };
 
 $("clearAllBtn").onclick = () => {
+  // Release pending courts first, otherwise they keep referencing players who
+  // are no longer marked as arrived.
+  state.currentCourts.forEach((c) => {
+    if (c.status === "pending") cancelPendingCourt(c.court);
+  });
   state.players.forEach((p) => {
     if (!p.currentlyPlaying) p.arrived = false;
   });
@@ -228,6 +252,19 @@ $("scheduleList").onclick = (e) => {
 };
 
 $("scheduleList").onchange = (e) => {
+  const pairCourt = e.target.dataset.pairCourt,
+    pairSlot = e.target.dataset.pairSlot;
+
+  if (pairCourt !== undefined && pairSlot !== undefined) {
+    if (e.target.value !== "replace") return;
+    if (replacePairOnCourt(Number(pairCourt), Number(pairSlot))) render();
+    else {
+      toast("Not enough bench players to replace this pair.");
+      render();
+    }
+    return;
+  }
+
   const courtNumber = e.target.dataset.swapCourt,
     slot = e.target.dataset.swapSlot;
   if (courtNumber === undefined || slot === undefined) return;
@@ -250,6 +287,7 @@ $("resetBtn").onclick = () => {
   localStorage.removeItem(STORAGE_KEY);
   Object.assign(state, defaultState());
   ensureCourtNames();
+  normalizePartners();
   saveState();
   render();
   toast("Session reset.");
@@ -259,6 +297,7 @@ document
   .querySelectorAll(".tab")
   .forEach((b) => (b.onclick = () => setTab(b.dataset.tab)));
 ensureCourtNames();
+normalizePartners();
 
 state.currentCourts = Array.from(
   { length: state.courts },
