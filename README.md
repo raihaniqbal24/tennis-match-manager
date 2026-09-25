@@ -18,9 +18,6 @@ Features:
 - Re-roll a reviewed match for a random line-up, always different from the one just rejected.
 - Swap any player in a reviewed match by clicking their name and picking a replacement.
 - Swap pairing to cycle a doubles match through its three possible team splits.
-
-Planned:
-
-- Fixed partners (two players who always play on the same team). See the FIXED-PARTNER SEAMS comment at the top of `js/scheduler.js` for the four hook points.
+- Fixed partners: two players who always play on the same team. They are kept together unless splitting them is the only way to keep playtime even (which happens when only one player can sit out per round, since a pair cannot rest together there); in practice they stay together in roughly 3 out of 4 rounds. Both sit out until each other are available, re-roll and generation move them as a unit, and a pair on court can be replaced with two random bench players. Ignored in singles.
 
 Built with ❤️ and a little help from AI.
